@@ -1,0 +1,16 @@
+# Copyright 2023 OpenSPG Authors
+#
+# OpenSPG server image with the Nebula (trsgraph) graph-store driver.
+#
+# Build the fat jar first:
+#   dev/release/scripts/build-openspg-server-nebula.sh
+#
+# Then build this image from dev/release:
+#   docker compose -f docker-compose.local.yml build server
+
+ARG OPENSPG_BASE_IMAGE=spg-registry.cn-hangzhou.cr.aliyuncs.com/spg/openspg-server:latest
+FROM ${OPENSPG_BASE_IMAGE}
+
+COPY nebula-runtime/arks-sofaboot-0.0.1-SNAPSHOT-executable.jar /arks-sofaboot-0.0.1-SNAPSHOT-executable.jar
+
+EXPOSE 8887

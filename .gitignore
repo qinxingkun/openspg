@@ -460,3 +460,7 @@ hs_err_pid*
 /logs/
 **/spotless-index-file
 **/pom.xml.versionsBackup
+
+# Local Nebula-enabled OpenSPG server build output (see dev/release/scripts/build-openspg-server-nebula.sh)
+/dev/release/nebula-runtime/
+/dev/release/docker-compose.local.yml.bak*

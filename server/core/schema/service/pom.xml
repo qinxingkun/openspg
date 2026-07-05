@@ -49,6 +49,10 @@
     </dependency>
     <dependency>
       <groupId>com.antgroup.openspg.cloudext</groupId>
+      <artifactId>cloudext-impl-graph-store-nebula</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.antgroup.openspg.cloudext</groupId>
       <artifactId>cloudext-impl-search-engine-elasticsearch</artifactId>
     </dependency>
     <dependency>

@@ -88,18 +88,23 @@ public class ProjectServiceImpl implements ProjectService {
     String database = null;
     String config = project.getConfig();
     if (StringUtils.isNotBlank(config)) {
-      JSONObject graphStore = JSON.parseObject(config).getJSONObject(CommonConstants.GRAPH_STORE);
-      if (graphStore.containsKey(Neo4jConstants.URI)) {
-        url = graphStore.getString(Neo4jConstants.URI);
-      }
-      if (graphStore.containsKey(Neo4jConstants.USER)) {
-        user = graphStore.getString(Neo4jConstants.USER);
-      }
-      if (graphStore.containsKey(Neo4jConstants.PASSWORD)) {
-        password = graphStore.getString(Neo4jConstants.PASSWORD);
-      }
-      if (graphStore.containsKey(Neo4jConstants.DATABASE)) {
-        database = graphStore.getString(Neo4jConstants.DATABASE);
+      JSONObject configJson = JSON.parseObject(config);
+      if (configJson != null) {
+        JSONObject graphStore = configJson.getJSONObject(CommonConstants.GRAPH_STORE);
+        if (graphStore != null) {
+          if (graphStore.containsKey(Neo4jConstants.URI)) {
+            url = graphStore.getString(Neo4jConstants.URI);
+          }
+          if (graphStore.containsKey(Neo4jConstants.USER)) {
+            user = graphStore.getString(Neo4jConstants.USER);
+          }
+          if (graphStore.containsKey(Neo4jConstants.PASSWORD)) {
+            password = graphStore.getString(Neo4jConstants.PASSWORD);
+          }
+          if (graphStore.containsKey(Neo4jConstants.DATABASE)) {
+            database = graphStore.getString(Neo4jConstants.DATABASE);
+          }
+        }
       }
     }
 

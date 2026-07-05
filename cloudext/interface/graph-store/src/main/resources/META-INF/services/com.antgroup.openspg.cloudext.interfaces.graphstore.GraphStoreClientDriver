@@ -1,2 +1,3 @@
 com.antgroup.openspg.cloudext.impl.graphstore.tugraph.TuGraphStoreClientDriver
 com.antgroup.openspg.cloudext.impl.graphstore.neo4j.Neo4jStoreClientDriver
+com.antgroup.openspg.cloudext.impl.graphstore.nebula.NebulaStoreClientDriver

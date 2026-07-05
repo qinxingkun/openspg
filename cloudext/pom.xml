@@ -42,6 +42,7 @@
     <module>interface/computing-engine</module>
     <module>impl/graph-store/tugraph</module>
     <module>impl/graph-store/neo4j</module>
+    <module>impl/graph-store/nebula</module>
     <module>impl/search-engine/elasticsearch</module>
     <module>impl/search-engine/neo4j</module>
     <module>impl/cache/redis</module>

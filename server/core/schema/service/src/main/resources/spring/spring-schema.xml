@@ -47,9 +47,7 @@
           class="com.antgroup.openspg.server.core.schema.service.alter.sync.SchemaSyncerFactory">
         <property name="schemaSyncerMap">
             <map>
-                <!--<entry key="GRAPH" value-ref="graphStorageSyncer"/>
-                <entry key="SEARCH_ENGINE" value-ref="searchEngineSyncer"/>-->
-                <entry key="GRAPH" value-ref="neo4jSyncer"/>
+                <entry key="GRAPH" value-ref="graphStorageSyncer"/>
             </map>
         </property>
     </bean>

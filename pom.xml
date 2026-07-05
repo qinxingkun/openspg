@@ -47,6 +47,7 @@
     <json4s.version>4.0.6</json4s.version>
     <kgreasoner-version>20231018-OPENSOURCE</kgreasoner-version>
     <logback.version>1.2.11</logback.version>
+    <nebula.client.version>3.6.0</nebula.client.version>
     <neo4j.client.version>4.4.7</neo4j.client.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -157,6 +158,11 @@
       </dependency>
       <dependency>
         <groupId>com.antgroup.openspg.cloudext</groupId>
+        <artifactId>cloudext-impl-graph-store-nebula</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.antgroup.openspg.cloudext</groupId>
         <artifactId>cloudext-impl-search-engine-elasticsearch</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -257,6 +263,11 @@
         <groupId>org.neo4j.driver</groupId>
         <artifactId>neo4j-java-driver</artifactId>
         <version>${neo4j.client.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.vesoft</groupId>
+        <artifactId>client</artifactId>
+        <version>${nebula.client.version}</version>
       </dependency>
       <dependency>
         <groupId>com.opencsv</groupId>

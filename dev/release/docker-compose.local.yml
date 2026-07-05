@@ -1,0 +1,122 @@
+version: "3.7"
+
+# Isolated OpenSPG stack for this shared host.
+# Host ports are remapped to the 1xxxx range to avoid colliding with the
+# already-running mysql(3306) / neo4j(7474,7687) / minio(9000,9001) of another project.
+# Internal container-to-container networking uses service/container names, so the
+# server keeps talking to mysql:3306 and release-openspg-neo4j:7687 inside the compose network.
+
+networks:
+  openspg-net:
+    name: openspg-net
+  trsnet:
+    external: true
+    name: trs-graph-service_default
+
+volumes:
+  openspg-mysql-data:
+  openspg-neo4j-data:
+  openspg-neo4j-logs:
+  openspg-minio-data:
+
+services:
+  server:
+    restart: always
+    build:
+      context: .
+      dockerfile: server/Dockerfile.nebula
+      args:
+        OPENSPG_BASE_IMAGE: spg-registry.cn-hangzhou.cr.aliyuncs.com/spg/openspg-server:latest
+    image: ${OPENSPG_SERVER_NEBULA_IMAGE:-openspg-server-nebula:local}
+    container_name: release-openspg-server
+    networks:
+      - openspg-net
+      - trsnet
+    ports:
+      - "8887:8887"
+    depends_on:
+      - mysql
+      - neo4j
+      - minio
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      TZ: Asia/Shanghai
+      LANG: C.UTF-8
+    command: [
+      "java",
+      "-Dfile.encoding=UTF-8",
+      "-Xms1024m",
+      "-Xmx4096m",
+      "-jar",
+      "arks-sofaboot-0.0.1-SNAPSHOT-executable.jar",
+      '--server.repository.impl.jdbc.host=mysql',
+      '--server.repository.impl.jdbc.password=openspg',
+      '--builder.model.execute.num=20',
+      '--cloudext.graphstore.url=nebula://trsgraph:9669?user=${TRSGRAPH_USER:-root}&password=${TRSGRAPH_PASSWORD:-trsadmin}',
+      '--cloudext.searchengine.url=neo4j://release-openspg-neo4j:7687?user=neo4j&password=neo4j@openspg&database=neo4j'
+    ]
+
+  mysql:
+    restart: always
+    image: spg-registry.cn-hangzhou.cr.aliyuncs.com/spg/openspg-mysql:latest
+    container_name: release-openspg-mysql
+    networks:
+      - openspg-net
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - openspg-mysql-data:/var/lib/mysql
+    environment:
+      TZ: Asia/Shanghai
+      LANG: C.UTF-8
+      MYSQL_ROOT_PASSWORD: openspg
+      MYSQL_DATABASE: openspg
+    ports:
+      - "13306:3306"
+    command: [
+      '--character-set-server=utf8mb4',
+      '--collation-server=utf8mb4_general_ci'
+    ]
+
+  neo4j:
+    restart: always
+    image: spg-registry.cn-hangzhou.cr.aliyuncs.com/spg/openspg-neo4j:latest
+    container_name: release-openspg-neo4j
+    networks:
+      - openspg-net
+    ports:
+      - "17474:7474"
+      - "17687:7687"
+    environment:
+      - TZ=Asia/Shanghai
+      - NEO4J_AUTH=neo4j/neo4j@openspg
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_server_memory_heap_initial__size=1G
+      - NEO4J_server_memory_heap_max__size=2G
+      - NEO4J_server_memory_pagecache_size=1G
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_dbms_security_procedures_unrestricted=*
+      - NEO4J_dbms_security_procedures_allowlist=*
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - openspg-neo4j-data:/data
+      - openspg-neo4j-logs:/logs
+
+  minio:
+    image: spg-registry.cn-hangzhou.cr.aliyuncs.com/spg/openspg-minio:latest
+    container_name: release-openspg-minio
+    networks:
+      - openspg-net
+    command: server --console-address ":9001" /data
+    restart: always
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio@openspg
+      TZ: Asia/Shanghai
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - openspg-minio-data:/data
