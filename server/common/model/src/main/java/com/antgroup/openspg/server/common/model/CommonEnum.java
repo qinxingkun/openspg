@@ -29,15 +29,13 @@ public interface CommonEnum {
   enum DataSourceType {
 
     /** ODPS */
-    ODPS("ODPS", DataSourceCategory.BATCH, null), /*
+    ODPS("ODPS", DataSourceCategory.BATCH, null),
+    /** MySQL */
+    MySQL("MySQL", DataSourceCategory.BATCH, "com.mysql.jdbc.Driver"), /*
     */
     /** Hive */
     /*
     Hive("Hive", DataSourceCategory.BATCH, "org.apache.hive.jdbc.HiveDriver"),
-    */
-    /** MySQL */
-    /*
-    MySQL("MySQL", DataSourceCategory.BATCH, "com.mysql.jdbc.Driver"),
     */
     /** Oracle */
     /*

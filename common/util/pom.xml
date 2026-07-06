@@ -25,6 +25,10 @@
   <dependencies>
     <dependency>
       <groupId>com.antgroup.openspg.server</groupId>
+      <artifactId>common-model</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.antgroup.openspg.server</groupId>
       <artifactId>core-schema-model</artifactId>
     </dependency>
     <dependency>
@@ -82,6 +86,21 @@
     <dependency>
       <groupId>org.danilopianini</groupId>
       <artifactId>gson-extras</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.alibaba</groupId>
+      <artifactId>fastjson</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>mysql</groupId>
+      <artifactId>mysql-connector-java</artifactId>
+      <version>5.1.30</version>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.13.2</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 </project>

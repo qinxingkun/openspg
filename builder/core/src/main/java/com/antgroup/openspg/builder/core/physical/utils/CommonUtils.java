@@ -27,6 +27,7 @@ import com.antgroup.openspg.builder.model.record.property.SPGPropertyRecord;
 import com.antgroup.openspg.cloudext.interfaces.graphstore.adapter.util.EdgeRecordConvertor;
 import com.antgroup.openspg.cloudext.interfaces.graphstore.adapter.util.VertexRecordConvertor;
 import com.antgroup.openspg.common.constants.BuilderConstant;
+import com.antgroup.openspg.common.util.jdbc.MySqlDataScanner;
 import com.antgroup.openspg.common.util.pemja.PemjaUtils;
 import com.antgroup.openspg.common.util.pemja.PythonInvokeMethod;
 import com.antgroup.openspg.common.util.pemja.model.PemjaConfig;
@@ -223,6 +224,10 @@ public class CommonUtils {
       Project project,
       BuilderJob job,
       Date bizDate) {
+    if (BuilderConstant.MYSQL.equalsIgnoreCase(job.getDataSourceType())) {
+      return MySqlDataScanner.scan(job);
+    }
+
     PythonInvokeMethod bridgeReader = PythonInvokeMethod.BRIDGE_SCANNER;
 
     JSONObject pyConfig = new JSONObject();

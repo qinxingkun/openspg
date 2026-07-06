@@ -124,12 +124,14 @@ public class BuilderConstant {
   public static final String DOC = "doc";
   public static final String DOCX = "docx";
   public static final String ODPS = "odps";
+  public static final String MYSQL = "mysql";
   public static final String SLS = "sls";
 
   public static final String CSV_STRUCTURED = "csv_structured";
   public static final String IGNORE_HEADER = "ignoreHeader";
 
   public static final String ODPS_SCANNER = "odps_scanner";
+  public static final String MYSQL_SCANNER = "mysql_scanner";
   public static final String ACCESS_ID = "access_id";
   public static final String ACCESS_KEY = "access_key";
   public static final String PROJECT = "project";

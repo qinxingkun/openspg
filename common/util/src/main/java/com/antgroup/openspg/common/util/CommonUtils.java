@@ -335,6 +335,26 @@ public class CommonUtils {
         scanner.put(BuilderConstant.COL_NAMES, colNames);
       }
       reader.put(BuilderConstant.TYPE, BuilderConstant.DICT);
+    } else if (BuilderConstant.MYSQL.equalsIgnoreCase(dataSourceType)) {
+      scanner.put(BuilderConstant.TYPE, BuilderConstant.MYSQL_SCANNER);
+      JSONObject dataSourceConfig =
+          builderExtension.getJSONObject(BuilderConstant.DATASOURCE_CONFIG);
+      DataSource dataSource =
+          JSON.parseObject(
+              dataSourceConfig.getString(BuilderConstant.DATASOURCE), DataSource.class);
+      scanner.put(BuilderConstant.ACCESS_ID, dataSource.getDbUser());
+      String password = ECBUtil.decrypt(dataSource.getEncrypt(), CommonConstant.ECB_PASSWORD_KEY);
+      scanner.put(BuilderConstant.ACCESS_KEY, password);
+      scanner.put(BuilderConstant.ENDPOINT, dataSource.getDbUrl());
+      scanner.put(BuilderConstant.DATABASE, dataSourceConfig.getString(BuilderConstant.DATABASE));
+      scanner.put(BuilderConstant.TABLE, dataSourceConfig.getString(BuilderConstant.TABLE));
+      if (dataSourceConfig.containsKey("where")) {
+        scanner.put("where", dataSourceConfig.getString("where"));
+      }
+      if (dataSourceConfig.containsKey("batchSize")) {
+        scanner.put("batchSize", dataSourceConfig.getInteger("batchSize"));
+      }
+      reader.put(BuilderConstant.TYPE, BuilderConstant.DICT);
     } else {
       UriComponents uri = UriComponentsBuilder.fromUriString(job.getFileUrl()).build();
       String extension = FilenameUtils.getExtension(uri.getPath());
