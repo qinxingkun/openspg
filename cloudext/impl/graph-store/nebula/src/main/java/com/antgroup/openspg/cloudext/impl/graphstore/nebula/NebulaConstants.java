@@ -24,6 +24,7 @@ public class NebulaConstants {
   public static final String PASSWORD = "password";
   public static final String SPACE = "space";
   public static final String TIMEOUT = "timeout";
+  public static final String MAX_SESSION_SIZE = "maxSessionSize";
 
   /**
    * Fallback space aliases. The OpenSPG server composes graph-store urls in a Neo4j style and drops
@@ -43,6 +44,7 @@ public class NebulaConstants {
 
   public static final String DEFAULT_PASSWORD = "nebula";
   public static final int DEFAULT_PORT = 9669;
+  public static final int DEFAULT_MAX_SESSION_SIZE = 128;
 
   /**
    * When the target space does not exist it is auto-created with this vid length / partition /

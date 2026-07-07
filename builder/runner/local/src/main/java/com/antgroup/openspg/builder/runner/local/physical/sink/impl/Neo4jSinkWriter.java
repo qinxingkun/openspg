@@ -24,7 +24,9 @@ import com.antgroup.openspg.builder.model.record.BaseRecord;
 import com.antgroup.openspg.builder.model.record.RecordAlterOperationEnum;
 import com.antgroup.openspg.builder.model.record.SubGraphRecord;
 import com.antgroup.openspg.builder.runner.local.physical.sink.BaseSinkWriter;
-import com.antgroup.openspg.cloudext.impl.graphstore.neo4j.Neo4jStoreClient;
+import com.antgroup.openspg.cloudext.interfaces.graphstore.BaseLPGGraphStoreClient;
+import com.antgroup.openspg.cloudext.interfaces.graphstore.GraphStoreClient;
+import com.antgroup.openspg.cloudext.interfaces.graphstore.GraphStoreClientDriverManager;
 import com.antgroup.openspg.cloudext.interfaces.graphstore.model.lpg.record.EdgeRecord;
 import com.antgroup.openspg.cloudext.interfaces.graphstore.model.lpg.record.LPGPropertyRecord;
 import com.antgroup.openspg.cloudext.interfaces.graphstore.model.lpg.record.VertexRecord;
@@ -44,10 +46,10 @@ import org.apache.commons.lang3.StringUtils;
 @Slf4j
 public class Neo4jSinkWriter extends BaseSinkWriter<Neo4jSinkNodeConfig> {
 
-  private static final int NUM_THREADS = 60;
+  private static final int NUM_THREADS = 16;
 
   private ExecuteNode node = new ExecuteNode();
-  private Neo4jStoreClient client;
+  private BaseLPGGraphStoreClient client;
   private Project project;
   private static final String DOT = ".";
 
@@ -77,7 +79,13 @@ public class Neo4jSinkWriter extends BaseSinkWriter<Neo4jSinkNodeConfig> {
     if (context.getExecuteNodes() != null) {
       this.node = context.getExecuteNodes().get(getId());
     }
-    client = new Neo4jStoreClient(context.getGraphStoreUrl());
+    GraphStoreClient graphStoreClient =
+        GraphStoreClientDriverManager.getClient(context.getGraphStoreUrl());
+    if (!(graphStoreClient instanceof BaseLPGGraphStoreClient)) {
+      throw new BuilderException(
+          "Unsupported graph store client: " + graphStoreClient.getClass().getName());
+    }
+    client = (BaseLPGGraphStoreClient) graphStoreClient;
     project = JSON.parseObject(context.getProject(), Project.class);
   }
 
@@ -103,9 +111,23 @@ public class Neo4jSinkWriter extends BaseSinkWriter<Neo4jSinkNodeConfig> {
     }
   }
 
+  private static final String VECTOR_SUFFIX = "_vector";
+
   public void writeToNeo4j(SubGraphRecord subGraphRecord) {
-    subGraphRecord.getResultNodes().forEach(node -> convertProperties(node.getProperties()));
-    subGraphRecord.getResultEdges().forEach(edge -> convertProperties(edge.getProperties()));
+    subGraphRecord
+        .getResultNodes()
+        .forEach(
+            node -> {
+              stripVectorProperties(node.getProperties());
+              convertProperties(node.getProperties());
+            });
+    subGraphRecord
+        .getResultEdges()
+        .forEach(
+            edge -> {
+              stripVectorProperties(edge.getProperties());
+              convertProperties(edge.getProperties());
+            });
     try {
       node.addTraceLog("Start Writer Nodes processor...");
       List<Future<Void>> nodeFutures =
@@ -128,10 +150,15 @@ public class Neo4jSinkWriter extends BaseSinkWriter<Neo4jSinkNodeConfig> {
     }
   }
 
+  private void stripVectorProperties(Map<String, Object> properties) {
+    properties.entrySet().removeIf(entry -> entry.getKey().endsWith(VECTOR_SUFFIX));
+  }
+
   private void convertProperties(Map<String, Object> properties) {
     for (Map.Entry<String, Object> entry : properties.entrySet()) {
-      if (entry.getValue() instanceof JSONArray) {
-        JSONArray jsonArray = (JSONArray) entry.getValue();
+      Object value = entry.getValue();
+      if (value instanceof JSONArray) {
+        JSONArray jsonArray = (JSONArray) value;
         List<Double> doubleList = new ArrayList<>();
         for (Object item : jsonArray) {
           if (item instanceof Number) {
@@ -139,11 +166,37 @@ public class Neo4jSinkWriter extends BaseSinkWriter<Neo4jSinkNodeConfig> {
           }
         }
         entry.setValue(doubleList);
+        continue;
       }
-      if (entry.getValue() instanceof BigDecimal) {
-        entry.setValue(((BigDecimal) entry.getValue()).doubleValue());
+      if (value instanceof String) {
+        String text = ((String) value).trim();
+        if (text.matches("-?\\d+")) {
+          entry.setValue(Long.parseLong(text));
+          continue;
+        }
+      }
+      if (value instanceof Number) {
+        entry.setValue(toNebulaNumber((Number) value));
       }
     }
+  }
+
+  private Object toNebulaNumber(Number value) {
+    if (value instanceof Long || value instanceof Integer || value instanceof Short) {
+      return value.longValue();
+    }
+    if (value instanceof BigDecimal) {
+      BigDecimal decimal = (BigDecimal) value;
+      if (decimal.scale() <= 0 || decimal.stripTrailingZeros().scale() <= 0) {
+        return decimal.longValue();
+      }
+      return decimal.doubleValue();
+    }
+    double doubleValue = value.doubleValue();
+    if (Double.isFinite(doubleValue) && doubleValue == Math.rint(doubleValue)) {
+      return (long) doubleValue;
+    }
+    return doubleValue;
   }
 
   private <T> List<Future<Void>> submitTasks(
@@ -184,7 +237,9 @@ public class Neo4jSinkWriter extends BaseSinkWriter<Neo4jSinkNodeConfig> {
       List<LPGPropertyRecord> properties = Lists.newArrayList();
       for (Map.Entry<String, Object> entry : node.getProperties().entrySet()) {
         Object entryValue = entry.getValue();
-        if (!TypeChecker.isArrayOrCollectionOfPrimitives(entryValue)) {
+        if (!(entryValue instanceof String)
+            && !TypeChecker.isPrimitiveOrWrapper(entryValue)
+            && !TypeChecker.isArrayOrCollectionOfPrimitives(entryValue)) {
           entryValue = JSON.toJSONString(entryValue);
         }
         properties.add(new LPGPropertyRecord(entry.getKey(), entryValue));
@@ -226,7 +281,9 @@ public class Neo4jSinkWriter extends BaseSinkWriter<Neo4jSinkNodeConfig> {
       List<LPGPropertyRecord> properties = Lists.newArrayList();
       for (Map.Entry<String, Object> entry : edge.getProperties().entrySet()) {
         Object entryValue = entry.getValue();
-        if (!TypeChecker.isArrayOrCollectionOfPrimitives(entryValue)) {
+        if (!(entryValue instanceof String)
+            && !TypeChecker.isPrimitiveOrWrapper(entryValue)
+            && !TypeChecker.isArrayOrCollectionOfPrimitives(entryValue)) {
           entryValue = JSON.toJSONString(entryValue);
         }
         properties.add(new LPGPropertyRecord(entry.getKey(), entryValue));

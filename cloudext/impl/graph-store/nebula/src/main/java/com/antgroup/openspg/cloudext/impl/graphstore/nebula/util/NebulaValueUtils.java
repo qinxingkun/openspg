@@ -46,7 +46,12 @@ public class NebulaValueUtils {
   }
 
   private static String stringLiteral(String raw) {
-    String escaped = raw.replace("\\", "\\\\").replace("\"", "\\\"");
+    String escaped =
+        raw.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t");
     return "\"" + escaped + "\"";
   }
 

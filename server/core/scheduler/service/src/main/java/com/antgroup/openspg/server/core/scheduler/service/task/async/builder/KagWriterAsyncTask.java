@@ -217,8 +217,6 @@ public class KagWriterAsyncTask extends AsyncTaskExecuteTemplate {
       AtomicLong nodes = new AtomicLong(0);
       AtomicLong edges = new AtomicLong(0);
 
-      List<Future<?>> futures = new ArrayList<>();
-
       RecordAlterOperationEnum action = RecordAlterOperationEnum.UPSERT;
       if (RecordAlterOperationEnum.DELETE.name().equalsIgnoreCase(this.action)) {
         action = RecordAlterOperationEnum.DELETE;
@@ -232,40 +230,21 @@ public class KagWriterAsyncTask extends AsyncTaskExecuteTemplate {
         for (Integer f = 0; f < files.size(); f++) {
           final Integer fileIndex = f;
           final String filePath = files.get(f);
+          String data = objectStorageClient.getString(value.getBuilderBucketName(), filePath);
+          SubGraphRecord subGraph = JSON.parseObject(data, SubGraphRecord.class);
+          String indexStr = (fileIndex + 1) + "/" + files.size();
+          addTraceLog("Invoke the write operator. index:%s", indexStr);
+          stripVectorProperties(subGraph);
+          writer(writer, subGraph, indexStr);
+          simpleSubGraph(subGraph);
+          SchedulerUtils.getGraphSize(subGraph, nodes, edges);
+          String fileKey =
+              CommonUtils.getTaskStorageFileKey(pathKey, inputIndex + "_" + fileIndex);
+          objectStorageClient.saveString(
+              value.getBuilderBucketName(), JSON.toJSONString(subGraph), fileKey);
           addTraceLog(
-              "Write ThreadPool. size:%s active:%s completed:%s total:%s queue:%s",
-              executor.getPoolSize(),
-              executor.getActiveCount(),
-              executor.getCompletedTaskCount(),
-              executor.getTaskCount(),
-              executor.getQueue().size());
-          Future<?> future =
-              executor.submit(
-                  () -> {
-                    String data =
-                        objectStorageClient.getString(value.getBuilderBucketName(), filePath);
-                    SubGraphRecord subGraph = JSON.parseObject(data, SubGraphRecord.class);
-                    String indexStr = (fileIndex + 1) + "/" + files.size();
-                    addTraceLog("Invoke the write operator. index:%s", indexStr);
-                    writer(writer, subGraph, indexStr);
-                    simpleSubGraph(subGraph);
-                    SchedulerUtils.getGraphSize(subGraph, nodes, edges);
-                    String fileKey =
-                        CommonUtils.getTaskStorageFileKey(pathKey, inputIndex + "_" + fileIndex);
-                    objectStorageClient.saveString(
-                        value.getBuilderBucketName(), JSON.toJSONString(subGraph), fileKey);
-                    addTraceLog(
-                        "Store the results of the alignment operator. file:%s/%s",
-                        value.getBuilderBucketName(), fileKey);
-                  });
-          futures.add(future);
-        }
-      }
-      for (Future<?> future : futures) {
-        try {
-          future.get();
-        } catch (InterruptedException | ExecutionException e) {
-          throw new RuntimeException("invoke write Exception", e);
+              "Store the results of the alignment operator. file:%s/%s",
+              value.getBuilderBucketName(), fileKey);
         }
       }
 
@@ -274,6 +253,11 @@ public class KagWriterAsyncTask extends AsyncTaskExecuteTemplate {
     }
 
     public void simpleSubGraph(SubGraphRecord subGraph) {
+      stripVectorProperties(subGraph);
+      return;
+    }
+
+    private void stripVectorProperties(SubGraphRecord subGraph) {
       subGraph
           .getResultNodes()
           .forEach(

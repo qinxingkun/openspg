@@ -201,10 +201,17 @@ public class NebulaStoreClient extends BaseLPGGraphStoreClient {
     SessionPoolConfig config = new SessionPoolConfig(addresses, space, user, password);
     config.setRetryTimes(3);
     config.setIntervalTime(1000);
+    config.setMaxSessionSize(NebulaConstants.DEFAULT_MAX_SESSION_SIZE);
 
     String timeout = uriComponents.getQueryParams().getFirst(NebulaConstants.TIMEOUT);
     if (StringUtils.isNotBlank(timeout)) {
       config.setTimeout(Integer.parseInt(timeout));
+    }
+
+    String maxSessionSize =
+        uriComponents.getQueryParams().getFirst(NebulaConstants.MAX_SESSION_SIZE);
+    if (StringUtils.isNotBlank(maxSessionSize)) {
+      config.setMaxSessionSize(Integer.parseInt(maxSessionSize));
     }
 
     SessionPool pool = new SessionPool(config);
