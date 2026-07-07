@@ -36,7 +36,7 @@ import org.springframework.util.Assert;
 @Slf4j
 public class MySqlDataScanner {
 
-  private static final String MYSQL_DRIVER = "com.mysql.jdbc.Driver";
+  private static final String MYSQL_DRIVER = "com.mysql.cj.jdbc.Driver";
   private static final int DEFAULT_BATCH_SIZE = 5000;
 
   private MySqlDataScanner() {}
@@ -63,7 +63,7 @@ public class MySqlDataScanner {
         batchSize > 0 && batchSize <= CommonUtils.INNER_QUERY_MAX_COUNT,
         "batchSize must be between 1 and " + CommonUtils.INNER_QUERY_MAX_COUNT);
 
-    String password = ECBUtil.decrypt(dataSource.getEncrypt(), CommonConstant.ECB_PASSWORD_KEY);
+    String password = resolvePlainPassword(dataSource, dataSourceConfig.getString("encrypt"));
     List<Map<String, Object>> results = new ArrayList<>();
     int offset = 0;
 
@@ -83,6 +83,20 @@ public class MySqlDataScanner {
 
     log.info("MySQL scan complete. database:{} table:{} rows:{}", database, table, results.size());
     return results;
+  }
+
+  static String resolvePlainPassword(DataSource dataSource, String configEncrypt) {
+    String encrypted = configEncrypt;
+    if (StringUtils.isBlank(encrypted)) {
+      encrypted = dataSource.getEncrypt();
+    }
+    if (StringUtils.isBlank(encrypted) || CommonConstant.DEFAULT_PASSWORD.equals(encrypted)) {
+      encrypted = dataSource.getDbPassword();
+    }
+    if (StringUtils.isBlank(encrypted) || CommonConstant.DEFAULT_PASSWORD.equals(encrypted)) {
+      throw new IllegalArgumentException("dataSource password is missing in builder extension");
+    }
+    return ECBUtil.decrypt(encrypted, CommonConstant.ECB_PASSWORD_KEY);
   }
 
   static String buildSelectSql(

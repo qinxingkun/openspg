@@ -27,14 +27,12 @@ docker compose -f docker-compose.local.yml up -d
 
 ## 要点
 
-
-| 项          | 说明                                                             |
-| ---------- | -------------------------------------------------------------- |
+|     项      |                               说明                               |
+|------------|----------------------------------------------------------------|
 | 全局图库 URL   | `nebula://trsgraph:9669?user=…&password=…`（见 compose / `.env`） |
 | 项目 ↔ space | 每个 OpenSPG 项目 `namespace` 对应一个 Nebula space（不存在则自动创建）          |
 | API 类型名    | 使用完整名 `{namespace}.Person`，不要用短名 `Person`                      |
 | 产物         | `nebula-runtime/*.jar` 由脚本生成，已 `.gitignore`，勿提交                |
-
 
 ## 相关文件
 

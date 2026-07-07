@@ -18,6 +18,7 @@ import com.antgroup.openspg.common.constants.BuilderConstant;
 import com.antgroup.openspg.common.util.DateTimeUtils;
 import com.antgroup.openspg.server.api.facade.Paged;
 import com.antgroup.openspg.server.api.facade.dto.common.request.KagBuilderRequest;
+import com.antgroup.openspg.server.api.facade.dto.common.request.KagStructureBuilderRequest;
 import com.antgroup.openspg.server.api.http.server.BaseController;
 import com.antgroup.openspg.server.api.http.server.HttpBizCallback;
 import com.antgroup.openspg.server.api.http.server.HttpBizTemplate;
@@ -50,6 +51,34 @@ public class BuilderController extends BaseController {
   @Autowired private ProjectManager projectManager;
 
   @Autowired private SchedulerService schedulerService;
+
+  @Autowired private StructureBuilderSubmitService structureBuilderSubmitService;
+
+  @RequestMapping(value = "/structure/submit", method = RequestMethod.POST)
+  @ResponseBody
+  public HttpResult<BuilderJob> submitStructure(@RequestBody KagStructureBuilderRequest request) {
+    return HttpBizTemplate.execute2(
+        new HttpBizCallback<BuilderJob>() {
+          @Override
+          public void check() {
+            log.info("/builder/structure/submit request: {}", JSON.toJSONString(request));
+            AssertUtils.assertParamObjectIsNotNull("request", request);
+            AssertUtils.assertParamObjectIsNotNull("projectId", request.getProjectId());
+            AssertUtils.assertParamObjectIsNotNull("dataSourceId", request.getDataSourceId());
+            AssertUtils.assertParamObjectIsNotNull("database", request.getDatabase());
+            AssertUtils.assertParamObjectIsNotNull("table", request.getTable());
+            AssertUtils.assertParamObjectIsNotNull("entityType", request.getEntityType());
+            AssertUtils.assertParamObjectIsNotNull("propertyMapping", request.getPropertyMapping());
+            Project project = projectManager.queryById(request.getProjectId());
+            AssertUtils.assertParamObjectIsNotNull("project", project);
+          }
+
+          @Override
+          public BuilderJob action() {
+            return structureBuilderSubmitService.submit(request);
+          }
+        });
+  }
 
   @RequestMapping(value = "/kag/submit", method = RequestMethod.POST)
   @ResponseBody

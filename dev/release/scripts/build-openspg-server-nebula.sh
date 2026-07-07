@@ -31,6 +31,11 @@ NEBULA_MODULE="cloudext/impl/graph-store/nebula"
 NEBULA_ARTIFACT="cloudext-impl-graph-store-nebula-0.0.1-SNAPSHOT.jar"
 SCHEMA_SERVICE_LIB="BOOT-INF/lib/com.antgroup.openspg.server-core-schema-service-0.0.1-SNAPSHOT.jar"
 COMMON_SERVICE_LIB="BOOT-INF/lib/com.antgroup.openspg.server-common-service-0.0.1-SNAPSHOT.jar"
+COMMON_UTIL_LIB="BOOT-INF/lib/com.antgroup.openspg-common-util-0.0.1-SNAPSHOT.jar"
+API_FACADE_LIB="BOOT-INF/lib/com.antgroup.openspg.server-api-facade-0.0.1-SNAPSHOT.jar"
+COMMON_MODEL_LIB="BOOT-INF/lib/com.antgroup.openspg.server-common-model-0.0.1-SNAPSHOT.jar"
+HTTP_SERVER_LIB="BOOT-INF/lib/com.antgroup.openspg.server-api-http-server-0.0.1-SNAPSHOT.jar"
+BUILDER_CORE_LIB="BOOT-INF/lib/builder-core-0.0.1-SNAPSHOT.jar"
 
 log() { printf '[build-nebula-server] %s\n' "$*" >&2; }
 die() { printf '[build-nebula-server] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -45,9 +50,9 @@ detect_java_home() {
     return
   fi
   for candidate in \
-    /usr/lib/jvm/java-11-openjdk-amd64 \
+    /usr/lib/jvm/java-21-openjdk-amd64 \
     /usr/lib/jvm/java-17-openjdk-amd64 \
-    /usr/lib/jvm/java-21-openjdk-amd64; do
+    /usr/lib/jvm/java-11-openjdk-amd64; do
     if [[ -x "${candidate}/bin/java" ]]; then
       echo "${candidate}"
       return
@@ -68,6 +73,18 @@ build_nebula_module() {
     export PATH="${JAVA_HOME}/bin:${PATH}"
     cd "${OPENSPG_ROOT}"
     mvn -q -pl "${NEBULA_MODULE}" -am package -Dmaven.test.skip=true
+  )
+}
+
+build_mysql_structure_modules() {
+  local java_home="$1"
+  log "mvn package common-util, api-facade, common-model (JDK ${java_home})"
+  (
+    export JAVA_HOME="${java_home}"
+    export PATH="${JAVA_HOME}/bin:${PATH}"
+    cd "${OPENSPG_ROOT}"
+    mvn -q -pl common/util,server/api/facade,server/common/model -am package \
+      -Dmaven.test.skip=true -Dspotless.check.skip=true
   )
 }
 
@@ -165,6 +182,71 @@ patch_nested_lib_jars() {
   rm -rf "${workdir}"
 }
 
+patch_mysql_structure_api() {
+  local fat_jar="$1"
+  local javac_home="$2"
+
+  local common_util_jar="${OPENSPG_ROOT}/common/util/target/common-util-0.0.1-SNAPSHOT.jar"
+  local api_facade_jar="${OPENSPG_ROOT}/server/api/facade/target/api-facade-0.0.1-SNAPSHOT.jar"
+  local common_model_jar="${OPENSPG_ROOT}/server/common/model/target/common-model-0.0.1-SNAPSHOT.jar"
+  [[ -f "${common_util_jar}" ]] || die "missing ${common_util_jar}; run build_mysql_structure_modules"
+  [[ -f "${api_facade_jar}" ]] || die "missing ${api_facade_jar}; run build_mysql_structure_modules"
+  [[ -f "${common_model_jar}" ]] || die "missing ${common_model_jar}; run build_mysql_structure_modules"
+
+  local workdir
+  workdir="$(mktemp -d)"
+
+  cd "${workdir}"
+  jar xf "${fat_jar}" BOOT-INF/classes BOOT-INF/lib
+
+  cp "${common_util_jar}" "${COMMON_UTIL_LIB}"
+  cp "${api_facade_jar}" "${API_FACADE_LIB}"
+  cp "${common_model_jar}" "${COMMON_MODEL_LIB}"
+
+  local cp="BOOT-INF/classes:$(echo BOOT-INF/lib/*.jar | tr ' ' ':')"
+  local patch_out="${workdir}/patch-out"
+  mkdir -p "${patch_out}"
+  local lombok_jar
+  lombok_jar="$(find "${HOME}/.m2/repository/org/projectlombok/lombok" -name 'lombok-*.jar' 2>/dev/null | sort -V | tail -1)"
+  [[ -n "${lombok_jar}" && -f "${lombok_jar}" ]] || die "missing lombok jar in local Maven repository"
+
+  log "compiling MySQL datasource + structure builder API classes (Java 8 target)"
+  "${javac_home}/bin/javac" -proc:full -processorpath "${lombok_jar}" \
+    --release 8 -cp "${cp}:${lombok_jar}" -d "${patch_out}" \
+    "${OPENSPG_ROOT}/server/common/service/src/main/java/com/antgroup/openspg/server/common/service/datasource/meta/client/DataSourceMetaFactory.java" \
+    "${OPENSPG_ROOT}/server/common/service/src/main/java/com/antgroup/openspg/server/common/service/datasource/meta/client/impl/MySqlMetaClientImpl.java" \
+    "${OPENSPG_ROOT}/builder/core/src/main/java/com/antgroup/openspg/builder/core/physical/utils/CommonUtils.java" \
+    "${OPENSPG_ROOT}/server/api/http-server/src/main/java/com/antgroup/openspg/server/api/http/server/openapi/StructureBuilderSubmitService.java" \
+    "${OPENSPG_ROOT}/server/api/http-server/src/main/java/com/antgroup/openspg/server/api/http/server/openapi/BuilderController.java"
+
+  jar uf "${COMMON_SERVICE_LIB}" \
+    -C "${patch_out}" com/antgroup/openspg/server/common/service/datasource/meta/client/DataSourceMetaFactory.class \
+    -C "${patch_out}" com/antgroup/openspg/server/common/service/datasource/meta/client/impl/MySqlMetaClientImpl.class
+
+  jar uf "${BUILDER_CORE_LIB}" \
+    -C "${patch_out}" com/antgroup/openspg/builder/core/physical/utils/CommonUtils.class
+
+  local http_server_classes=()
+  while IFS= read -r class_file; do
+    http_server_classes+=("${class_file#${patch_out}/}")
+  done < <(find "${patch_out}/com/antgroup/openspg/server/api/http/server/openapi" -name 'BuilderController*.class' -o -name 'StructureBuilderSubmitService*.class' | sort)
+  local http_server_args=()
+  for class_file in "${http_server_classes[@]}"; do
+    http_server_args+=(-C "${patch_out}" "${class_file}")
+  done
+  jar uf "${HTTP_SERVER_LIB}" "${http_server_args[@]}"
+
+  zip -0 -X -q -g "${fat_jar}" \
+    "${COMMON_UTIL_LIB}" \
+    "${API_FACADE_LIB}" \
+    "${COMMON_MODEL_LIB}" \
+    "${COMMON_SERVICE_LIB}" \
+    "${BUILDER_CORE_LIB}" \
+    "${HTTP_SERVER_LIB}"
+  log "patched MySQL datasource + structure builder API into fat jar"
+  rm -rf "${workdir}"
+}
+
 main() {
   require_cmd mvn
   require_cmd jar
@@ -181,6 +263,7 @@ main() {
   trap "rm -rf '${workdir}'" EXIT
 
   build_nebula_module "${maven_home}"
+  build_mysql_structure_modules "${maven_home}"
 
   local base_jar fat_jar
   base_jar="$(extract_base_jar "${workdir}")"
@@ -189,6 +272,7 @@ main() {
 
   inject_nebula_libs "${fat_jar}"
   patch_nested_lib_jars "${fat_jar}" "${javac_home}"
+  patch_mysql_structure_api "${fat_jar}" "${javac_home}"
 
   mkdir -p "${OUTPUT_DIR}"
   cp "${fat_jar}" "${OUTPUT_JAR}"
