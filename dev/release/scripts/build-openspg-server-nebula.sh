@@ -29,6 +29,8 @@ BASE_IMAGE="${OPENSPG_BASE_IMAGE:-spg-registry.cn-hangzhou.cr.aliyuncs.com/spg/o
 
 NEBULA_MODULE="cloudext/impl/graph-store/nebula"
 NEBULA_ARTIFACT="cloudext-impl-graph-store-nebula-0.0.1-SNAPSHOT.jar"
+NEBULA_SEARCH_MODULE="cloudext/impl/search-engine/nebula"
+NEBULA_SEARCH_ARTIFACT="cloudext-impl-search-engine-nebula-0.0.1-SNAPSHOT.jar"
 SCHEMA_SERVICE_LIB="BOOT-INF/lib/com.antgroup.openspg.server-core-schema-service-0.0.1-SNAPSHOT.jar"
 COMMON_SERVICE_LIB="BOOT-INF/lib/com.antgroup.openspg.server-common-service-0.0.1-SNAPSHOT.jar"
 COMMON_UTIL_LIB="BOOT-INF/lib/com.antgroup.openspg-common-util-0.0.1-SNAPSHOT.jar"
@@ -67,12 +69,12 @@ detect_java_home() {
 
 build_nebula_module() {
   local java_home="$1"
-  log "mvn package ${NEBULA_MODULE} (JDK ${java_home})"
+  log "mvn package ${NEBULA_MODULE} and ${NEBULA_SEARCH_MODULE} (JDK ${java_home})"
   (
     export JAVA_HOME="${java_home}"
     export PATH="${JAVA_HOME}/bin:${PATH}"
     cd "${OPENSPG_ROOT}"
-    mvn -q -pl "${NEBULA_MODULE}" -am package -Dmaven.test.skip=true
+    mvn -q -pl "${NEBULA_MODULE},${NEBULA_SEARCH_MODULE}" -am package -Dmaven.test.skip=true -Dspotless.check.skip=true
   )
 }
 
@@ -108,10 +110,13 @@ extract_base_jar() {
 inject_nebula_libs() {
   local fat_jar="$1"
   local nebula_target="${OPENSPG_ROOT}/${NEBULA_MODULE}/target"
+  local search_target="${OPENSPG_ROOT}/${NEBULA_SEARCH_MODULE}/target"
   local deploy_dir="${nebula_target}/nebula-deploy-libs"
   local driver_jar="${nebula_target}/${NEBULA_ARTIFACT}"
+  local search_jar="${search_target}/${NEBULA_SEARCH_ARTIFACT}"
 
   [[ -f "${driver_jar}" ]] || die "missing ${driver_jar}; run mvn package first"
+  [[ -f "${search_jar}" ]] || die "missing ${search_jar}; run mvn package first"
   [[ -d "${deploy_dir}" ]] || die "missing ${deploy_dir}"
 
   local workdir
@@ -123,12 +128,14 @@ inject_nebula_libs() {
 
   mkdir -p BOOT-INF/lib
   cp "${driver_jar}" "BOOT-INF/lib/${NEBULA_ARTIFACT}"
+  cp "${search_jar}" "BOOT-INF/lib/${NEBULA_SEARCH_ARTIFACT}"
   cp "${deploy_dir}/client-"*.jar BOOT-INF/lib/
   cp "${deploy_dir}/bcpkix-jdk15on-"*.jar BOOT-INF/lib/
   cp "${deploy_dir}/bcutil-jdk15on-"*.jar BOOT-INF/lib/
 
-  for lib in BOOT-INF/lib/${NEBULA_ARTIFACT} BOOT-INF/lib/client-*.jar \
-    BOOT-INF/lib/bcpkix-jdk15on-*.jar BOOT-INF/lib/bcutil-jdk15on-*.jar; do
+  for lib in BOOT-INF/lib/${NEBULA_ARTIFACT} BOOT-INF/lib/${NEBULA_SEARCH_ARTIFACT} \
+    BOOT-INF/lib/client-*.jar BOOT-INF/lib/bcpkix-jdk15on-*.jar \
+    BOOT-INF/lib/bcutil-jdk15on-*.jar; do
     local name
     name="$(basename "${lib}")"
     if ! grep -Fq "BOOT-INF/lib/${name}" BOOT-INF/classpath.idx; then
@@ -138,13 +145,14 @@ inject_nebula_libs() {
 
   zip -0 -X -q -g fat.jar \
     BOOT-INF/lib/"${NEBULA_ARTIFACT}" \
+    BOOT-INF/lib/"${NEBULA_SEARCH_ARTIFACT}" \
     BOOT-INF/lib/client-*.jar \
     BOOT-INF/lib/bcpkix-jdk15on-*.jar \
     BOOT-INF/lib/bcutil-jdk15on-*.jar
   zip -X -q -g fat.jar BOOT-INF/classpath.idx
 
   cp fat.jar "${fat_jar}"
-  log "injected Nebula driver jars into fat jar"
+  log "injected Nebula graph-store and search driver jars into fat jar"
   rm -rf "${workdir}"
 }
 
@@ -162,9 +170,10 @@ patch_nested_lib_jars() {
   local patch_out="${workdir}/patch-out"
   mkdir -p "${patch_out}/spring"
 
-  log "compiling GraphStorageSyncer + ProjectServiceImpl (Java 8 target)"
+  log "compiling GraphStorageSyncer + SearchEngineSyncer + ProjectServiceImpl (Java 8 target)"
   "${javac_home}/bin/javac" -proc:none --release 8 -cp "${cp}" -d "${patch_out}" \
     "${OPENSPG_ROOT}/server/core/schema/service/src/main/java/com/antgroup/openspg/server/core/schema/service/alter/sync/GraphStorageSyncer.java" \
+    "${OPENSPG_ROOT}/server/core/schema/service/src/main/java/com/antgroup/openspg/server/core/schema/service/alter/sync/SearchEngineSyncer.java" \
     "${OPENSPG_ROOT}/server/common/service/src/main/java/com/antgroup/openspg/server/common/service/project/impl/ProjectServiceImpl.java"
 
   cp "${OPENSPG_ROOT}/server/core/schema/service/src/main/resources/spring/spring-schema.xml" \
@@ -172,6 +181,7 @@ patch_nested_lib_jars() {
 
   jar uf "${SCHEMA_SERVICE_LIB}" \
     -C "${patch_out}" com/antgroup/openspg/server/core/schema/service/alter/sync/GraphStorageSyncer.class \
+    -C "${patch_out}" com/antgroup/openspg/server/core/schema/service/alter/sync/SearchEngineSyncer.class \
     -C "${patch_out}" spring/spring-schema.xml
 
   jar uf "${COMMON_SERVICE_LIB}" \
@@ -277,7 +287,8 @@ main() {
   mkdir -p "${OUTPUT_DIR}"
   cp "${fat_jar}" "${OUTPUT_JAR}"
   log "done: ${OUTPUT_JAR} ($(du -h "${OUTPUT_JAR}" | awk '{print $1}'))"
-  log "next: cd ${RELEASE_DIR} && docker compose -f docker-compose.local.yml build server"
+  log "next: cd ${RELEASE_DIR} && DOCKER_BUILDKIT=0 docker build -f server/Dockerfile.nebula -t openspg-server-nebula:local ."
+  log "next: docker compose -f docker-compose.local.yml up -d --force-recreate --no-build server"
 }
 
 main "$@"

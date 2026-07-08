@@ -49,8 +49,9 @@ public class Neo4jSinkWriter extends BaseSinkWriter<Neo4jSinkNodeConfig> {
   private static final int NUM_THREADS = 16;
 
   private ExecuteNode node = new ExecuteNode();
-  private BaseLPGGraphStoreClient client;
+  private final BaseLPGGraphStoreClient client;
   private Project project;
+  private boolean retainVectorProperties;
   private static final String DOT = ".";
 
   private static RejectedExecutionHandler handler =
@@ -87,6 +88,9 @@ public class Neo4jSinkWriter extends BaseSinkWriter<Neo4jSinkNodeConfig> {
     }
     client = (BaseLPGGraphStoreClient) graphStoreClient;
     project = JSON.parseObject(context.getProject(), Project.class);
+    retainVectorProperties =
+        context.getGraphStoreUrl() != null
+            && context.getGraphStoreUrl().startsWith("nebula://");
   }
 
   @Override
@@ -118,14 +122,18 @@ public class Neo4jSinkWriter extends BaseSinkWriter<Neo4jSinkNodeConfig> {
         .getResultNodes()
         .forEach(
             node -> {
-              stripVectorProperties(node.getProperties());
+              if (!retainVectorProperties) {
+                stripVectorProperties(node.getProperties());
+              }
               convertProperties(node.getProperties());
             });
     subGraphRecord
         .getResultEdges()
         .forEach(
             edge -> {
-              stripVectorProperties(edge.getProperties());
+              if (!retainVectorProperties) {
+                stripVectorProperties(edge.getProperties());
+              }
               convertProperties(edge.getProperties());
             });
     try {

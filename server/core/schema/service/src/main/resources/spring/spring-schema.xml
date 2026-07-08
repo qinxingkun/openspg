@@ -48,6 +48,7 @@
         <property name="schemaSyncerMap">
             <map>
                 <entry key="GRAPH" value-ref="graphStorageSyncer"/>
+                <entry key="SEARCH_ENGINE" value-ref="searchEngineSyncer"/>
             </map>
         </property>
     </bean>

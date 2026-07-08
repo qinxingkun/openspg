@@ -69,6 +69,56 @@ public class NebulaSchemaUtils {
     return typeName + "_scan_idx";
   }
 
+  public static String propertyIndexName(String tagName, String propertyName) {
+    return tagName + "_" + propertyName + "_idx";
+  }
+
+  public static String fullTextIndexName(String tagName) {
+    return tagName + "_ft_idx";
+  }
+
+  public static String createTagPropertyIndex(String tagName, String propertyName, int length) {
+    return String.format(
+        "CREATE TAG INDEX IF NOT EXISTS %s ON %s (%s(%d))",
+        NebulaValueUtils.quoteName(propertyIndexName(tagName, propertyName)),
+        NebulaValueUtils.quoteName(tagName),
+        NebulaValueUtils.quoteName(propertyName),
+        length);
+  }
+
+  public static String createFullTextTagIndex(String tagName, List<String> propertyNames) {
+    String props =
+        propertyNames.stream()
+            .map(name -> NebulaValueUtils.quoteName(name))
+            .collect(Collectors.joining(", "));
+    return String.format(
+        "CREATE FULLTEXT TAG INDEX IF NOT EXISTS %s ON %s(%s)",
+        NebulaValueUtils.quoteName(fullTextIndexName(tagName)),
+        NebulaValueUtils.quoteName(tagName),
+        props);
+  }
+
+  public static String rebuildNamedTagIndex(String indexName) {
+    return String.format("REBUILD TAG INDEX %s", NebulaValueUtils.quoteName(indexName));
+  }
+
+  public static String annIndexName(String tagName, String propertyName) {
+    return tagName + "_" + propertyName + "_ann_idx";
+  }
+
+  /** Create an HNSW ANN index on a {@code FLOAT_VECTOR} tag property (trsgraph / Nebula 3.x). */
+  public static String createTagAnnIndex(
+      String indexName, String tagName, String propertyName, int dimensions) {
+    return String.format(
+        "CREATE TAG ANNINDEX IF NOT EXISTS %s ON %s::(%s) "
+            + "{ANNINDEX_TYPE: \"HNSW\", DIM: %d, METRIC_TYPE: \"INNER_PRODUCT\", "
+            + "MAXDEGREE: 16, EFCONSTRUCTION: 200, MAXELEMENTS: 1000000}",
+        NebulaValueUtils.quoteName(indexName),
+        NebulaValueUtils.quoteName(tagName),
+        NebulaValueUtils.quoteName(propertyName),
+        dimensions);
+  }
+
   public static String alterTagAddProperties(String tagName, List<LPGProperty> properties) {
     return String.format(
         "ALTER TAG %s ADD (%s)", NebulaValueUtils.quoteName(tagName), propertyDefs(properties));

@@ -190,6 +190,7 @@ public class KagWriterAsyncTask extends AsyncTaskExecuteTemplate {
     private List<String> inputs;
 
     private static final String VECTOR = "_vector";
+    private final boolean retainVectorProperties;
 
     public WriterTaskCallable(
         DefaultValue value,
@@ -204,6 +205,9 @@ public class KagWriterAsyncTask extends AsyncTaskExecuteTemplate {
       this.context = context;
       this.action = action;
       this.inputs = inputs;
+      String graphStoreUrl = projectManager.getGraphStoreUrl(context.getInstance().getProjectId());
+      this.retainVectorProperties =
+          graphStoreUrl != null && graphStoreUrl.startsWith("nebula://");
     }
 
     @Override
@@ -234,7 +238,9 @@ public class KagWriterAsyncTask extends AsyncTaskExecuteTemplate {
           SubGraphRecord subGraph = JSON.parseObject(data, SubGraphRecord.class);
           String indexStr = (fileIndex + 1) + "/" + files.size();
           addTraceLog("Invoke the write operator. index:%s", indexStr);
-          stripVectorProperties(subGraph);
+          if (!retainVectorProperties) {
+            stripVectorProperties(subGraph);
+          }
           writer(writer, subGraph, indexStr);
           simpleSubGraph(subGraph);
           SchedulerUtils.getGraphSize(subGraph, nodes, edges);
@@ -253,8 +259,9 @@ public class KagWriterAsyncTask extends AsyncTaskExecuteTemplate {
     }
 
     public void simpleSubGraph(SubGraphRecord subGraph) {
-      stripVectorProperties(subGraph);
-      return;
+      if (!retainVectorProperties) {
+        stripVectorProperties(subGraph);
+      }
     }
 
     private void stripVectorProperties(SubGraphRecord subGraph) {

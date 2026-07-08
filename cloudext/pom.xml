@@ -45,6 +45,7 @@
     <module>impl/graph-store/nebula</module>
     <module>impl/search-engine/elasticsearch</module>
     <module>impl/search-engine/neo4j</module>
+    <module>impl/search-engine/nebula</module>
     <module>impl/cache/redis</module>
     <module>impl/object-storage/minio</module>
     <module>impl/object-storage/oss</module>

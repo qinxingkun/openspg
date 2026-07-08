@@ -1,2 +1,3 @@
 com.antgroup.openspg.cloudext.impl.searchengine.elasticsearch.ElasticSearchEngineClientDriver
 com.antgroup.openspg.cloudext.impl.searchengine.neo4j.Neo4jSearchClientDriver
+com.antgroup.openspg.cloudext.impl.searchengine.nebula.NebulaSearchClientDriver
