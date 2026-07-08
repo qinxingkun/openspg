@@ -14,12 +14,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Check License Header
         uses: apache/skywalking-eyes@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           log: info
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: maven
+      - name: Install Maven artifacts for dependency license scan
+        run: mvn -B install -DskipTests -ntp -Dspotless.check.skip=true
       - name: Check Dependencies' License
         uses: apache/skywalking-eyes/dependency@main
